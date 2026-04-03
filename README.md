@@ -240,23 +240,107 @@ Every offensive module is gated behind a liability disclaimer. Accept to unlock 
 
 ## Wiring
 
-All external radios share the VSPI bus (GPIO 18/19/23) with the built-in SD card. Only one device talks at a time — the SPI manager handles bus arbitration automatically.
-
-Full pin mapping, wiring diagrams, and board-specific differences are in `cyd_config.h`. The Radio Test module (Tools > Radio Test) includes 4-page visual wiring diagrams for every radio.
-
-### Quick Reference
-
-| Module | CS Pin | Extra Pins |
-|--------|--------|------------|
-| CC1101 | GPIO 27 (2.8") / GPIO 21 (E32R35T) | GDO0=22 (TX), GDO2=35 (RX) |
-| NRF24 | GPIO 4 (2.8") / GPIO 26 (E32R28T/E32R35T) | CE=16 |
-| PN532 | GPIO 17 | SPI mode (DIP: CH1=OFF, CH2=ON) |
-| SD Card | GPIO 5 | Built into CYD board |
-| GPS | — | TX→GPIO 3 (P1 connector, shared with USB RX) |
-
-**E07 PA Module:** Enable in Settings > CC1101 Module. TX_EN on GPIO 4, RX_EN on GPIO 0. E32R28T/E32R35T only. **Must be powered from an independent 5V→3.3V buck converter** — not the CYD's 3.3V rail. Same applies to the NRF24 E01-2G4M27SX.
+All external radios share the VSPI bus (GPIO 18/19/23) with the built-in SD card. Only one device talks at a time — the SPI manager handles bus arbitration automatically. The Radio Test module (Tools > Radio Test) also has 4-page visual wiring diagrams built into the firmware.
 
 **Note:** CiferTech's original firmware had CC1101 TX/RX pins swapped. HaleHound corrects this — GDO0 is TX (to radio), GDO2 is RX (from radio).
+
+### CC1101 SubGHz Radio
+
+```
+┌─────────────────┐              ┌──────────────────┐
+│    CC1101        │              │    CYD ESP32      │
+│    HW-863        │              │                   │
+├─────────────────┤              ├──────────────────┤
+│ VCC ─────────────┼──────────────┤ 3.3V              │
+│ GND ─────────────┼──────────────┤ GND               │
+│ SCK ─────────────┼──────────────┤ GPIO 18 (VSPI)    │
+│ MOSI ────────────┼──────────────┤ GPIO 23 (VSPI)    │
+│ MISO ────────────┼──────────────┤ GPIO 19 (VSPI)    │
+│ CS ──────────────┼──────────────┤ GPIO 27 (CN1 hdr) │
+│ GDO0 (TX) ───────┼──────────────┤ GPIO 22 (P3 hdr)  │
+│ GDO2 (RX) ───────┼──────────────┤ GPIO 35 (P3 hdr)  │
+└─────────────────┘              └──────────────────┘
+```
+
+**E32R28T / E32R35T:** CC1101 CS moves to **GPIO 21** (GPIO 27 is backlight on 3.5"). All other pins identical.
+
+### NRF24L01+PA+LNA
+
+```
+┌─────────────────┐              ┌──────────────────┐
+│  NRF24L01        │              │    CYD ESP32      │
+│  +PA+LNA         │              │                   │
+├─────────────────┤              ├──────────────────┤
+│ VCC ─────────────┼──────────────┤ 3.3V              │
+│ GND ─────────────┼──────────────┤ GND               │
+│ SCK ─────────────┼──────────────┤ GPIO 18 (VSPI)    │
+│ MOSI ────────────┼──────────────┤ GPIO 23 (VSPI)    │
+│ MISO ────────────┼──────────────┤ GPIO 19 (VSPI)    │
+│ CSN ─────────────┼──────────────┤ GPIO 4  (was RGB R)│
+│ CE ──────────────┼──────────────┤ GPIO 16 (was RGB G)│
+│ IRQ (optional) ──┼──────────────┤ GPIO 17 (was RGB B)│
+└─────────────────┘              └──────────────────┘
+```
+
+**E32R28T / E32R35T:** NRF24 CSN moves to **GPIO 26** (GPIO 4 used for CC1101 PA TX_EN). CE and IRQ stay the same.
+
+**10uF capacitor** between VCC/GND at the NRF24 module if you get random resets.
+
+### PN532 NFC/RFID
+
+```
+┌─────────────────┐              ┌──────────────────┐
+│    PN532 V3      │              │    CYD ESP32      │
+│   (Elechouse)    │              │                   │
+├─────────────────┤              ├──────────────────┤
+│ VCC ─────────────┼──────────────┤ 3.3V (CN1 hdr)    │
+│ GND ─────────────┼──────────────┤ GND  (CN1 hdr)    │
+│ SCK ─────────────┼──────────────┤ GPIO 18 (VSPI)    │
+│ MOSI ────────────┼──────────────┤ GPIO 23 (VSPI)    │
+│ MISO ────────────┼──────────────┤ GPIO 19 (VSPI)    │
+│ SS ──────────────┼──────────────┤ GPIO 17 (was RGB B)│
+└─────────────────┘              └──────────────────┘
+```
+
+**DIP Switches:** CH1=OFF, CH2=ON for SPI mode.
+
+### GPS Module
+
+```
+┌─────────────────┐              ┌──────────────────┐
+│    GT-U7         │              │  CYD P1 Connector │
+│    GPS           │              │  (JST header)     │
+├─────────────────┤              ├──────────────────┤
+│ VCC ─────────────┼──────────────┤ VIN               │
+│ GND ─────────────┼──────────────┤ GND               │
+│ TX ──────────────┼──────────────┤ RX (GPIO 3)       │
+│ RX (not used) ───┼──────────────┤ TX (GPIO 1)       │
+└─────────────────┘              └──────────────────┘
+```
+
+**USB Conflict:** GPIO 3 is shared with USB serial RX. Firmware calls Serial.end() during GPS, restores on exit.
+
+### E07-433M20S PA Module (Optional Amplified SubGHz)
+
+```
+┌─────────────────┐              ┌──────────────────┐
+│ E07-433M20S      │              │  E32R28T/E32R35T  │
+│ (CC1101 + PA)    │              │    ESP32          │
+├─────────────────┤              ├──────────────────┤
+│ VCC ─────────────┼── 3.3V BUCK ─┤ (NOT CYD 3.3V!)  │
+│ GND ─────────────┼──────────────┤ GND (common)      │
+│ SCK ─────────────┼──────────────┤ GPIO 18 (VSPI)    │
+│ MOSI ────────────┼──────────────┤ GPIO 23 (VSPI)    │
+│ MISO ────────────┼──────────────┤ GPIO 19 (VSPI)    │
+│ CS ──────────────┼──────────────┤ GPIO 21            │
+│ GDO0 (TX) ───────┼──────────────┤ GPIO 22            │
+│ GDO2 (RX) ───────┼──────────────┤ GPIO 35            │
+│ TX_EN ───────────┼──────────────┤ GPIO 4             │
+│ RX_EN ───────────┼──────────────┤ GPIO 0             │
+└─────────────────┘              └──────────────────┘
+```
+
+**Must be powered from an independent 5V→3.3V buck converter** — not the CYD's 3.3V rail. The PA module draws too much current. Same applies to the NRF24 E01-2G4M27SX. Enable PA mode in Settings > CC1101 Module. E32R28T/E32R35T only.
 
 ---
 
