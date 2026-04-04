@@ -5319,6 +5319,7 @@ static bool portalActive = false;
 
 static char customSSID[32] = "FreeWiFi";
 static const char* defaultSSID = "FreeWiFi";
+static bool ssidIsUserSet = false;  // true = cloned or keyboard entry, don't overwrite on template switch
 
 // Background deauth — kicks clients off real AP onto our evil twin
 static uint8_t targetBSSID[6] = {0};
@@ -6421,6 +6422,7 @@ static void handleKeyboard(int x, int y) {
     if (x >= okX && x <= (okX + kbBtnW) && y >= btnY && y <= btnY + kbBtnH + 3) {
         if (inputSSID.length() > 0) {
             saveSSID(inputSSID.c_str());
+            ssidIsUserSet = true;
             currentScreen = SCREEN_MAIN;
             keyboardActive = false;
             keyboardMode = 0;
@@ -6633,7 +6635,7 @@ static void handleTouch() {
                 currentTemplate = (PortalTemplate)((currentTemplate + TMPL_COUNT - 1) % TMPL_COUNT);
                 EEPROM.write(TMPL_ADDR, (uint8_t)currentTemplate);
                 EEPROM.commit();
-                saveSSID(templateSSIDs[currentTemplate]);
+                if (!ssidIsUserSet) saveSSID(templateSSIDs[currentTemplate]);
                 waitForReleaseFlag = true;
                 drawHeader();
                 drawInfo();
@@ -6646,7 +6648,7 @@ static void handleTouch() {
                 currentTemplate = (PortalTemplate)((currentTemplate + 1) % TMPL_COUNT);
                 EEPROM.write(TMPL_ADDR, (uint8_t)currentTemplate);
                 EEPROM.commit();
-                saveSSID(templateSSIDs[currentTemplate]);
+                if (!ssidIsUserSet) saveSSID(templateSSIDs[currentTemplate]);
                 waitForReleaseFlag = true;
                 drawHeader();
                 drawInfo();
@@ -6829,7 +6831,7 @@ void loop() {
 }
 
 bool isPortalActive() { return portalActive; }
-void setSSID(const char* ssid) { saveSSID(ssid); }
+void setSSID(const char* ssid) { saveSSID(ssid); ssidIsUserSet = true; }
 const char* getSSID() { return customSSID; }
 
 int getCredentialCount() {
@@ -6875,6 +6877,7 @@ void cleanup() {
     initialized = false;
     exitRequested = false;
     waitForReleaseFlag = false;
+    ssidIsUserSet = false;
     lineCount = 0;
     hasTarget = false;
     memset(targetBSSID, 0, sizeof(targetBSSID));
